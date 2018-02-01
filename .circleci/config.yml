@@ -2,6 +2,8 @@ version: 2
 variables: 
   - &workdir
     /tmp/circleci
+  - &branchignore
+    ignore: [noci, gh-pages]
   - &dockerbuildimage
       - image: circleci/golang
   - &gradleimage
@@ -24,6 +26,7 @@ variables:
     name: Build and Push Service Docker Image
     command: |
       TAG=$DOCKER_TAG
+      if [[ "${REGISTRY_NAMEIMAGE}" == "" ]] ; then REGISTRY_NAMEIMAGE="buildci"; fi
       docker build -f ./$GIT_FOLDER/Dockerfile --build-arg port=$SERVICE_PORT --build-arg mongo_connection=mongodb://localhost/$GIT_FOLDER --build-arg VCS_REF=$CIRCLE_SHA1 --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:latest .
       if [[ ((`echo $CIRCLE_BRANCH | grep -c "master"` > 0))]]; then 
         echo "Push to registry since it's the master branch."
@@ -34,7 +37,6 @@ variables:
       else
         echo "Skip Docker push image since it is not the master branch."
       fi
-
 jobs:
   orderservice:
     working_directory: *workdir
@@ -276,6 +278,7 @@ jobs:
           name: Build and Push Service Docker Image
           command: |
             TAG=$DOCKER_TAG
+            if [[ "${REGISTRY_NAMEIMAGE}" == "" ]] ; then REGISTRY_NAMEIMAGE="buildci"; fi
             echo "Building " $GIT_FOLDER
             docker build -f ./$GIT_FOLDER/Dockerfile --build-arg port=$SERVICE_PORT --build-arg VCS_REF=`git rev-parse --short HEAD` --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:latest .
             if [[ ((`echo $CIRCLE_BRANCH | grep -c "master"` > 0))]]; then 
@@ -334,6 +337,7 @@ jobs:
           command: |
             echo "Building " $GIT_FOLDER
             TAG=$DOCKER_TAG
+            if [[ "${REGISTRY_NAMEIMAGE}" == "" ]] ; then REGISTRY_NAMEIMAGE="buildci"; fi
             docker build -f ./$GIT_FOLDER/Dockerfile --build-arg port=$SERVICE_PORT --build-arg VCS_REF=`git rev-parse --short HEAD` --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:latest .
             if [[ ((`echo $CIRCLE_BRANCH | grep -c "master"` > 0))]]; then 
               echo "Push to registry since it's the master branch."
@@ -344,34 +348,67 @@ jobs:
             else
               echo "Skip Docker push image since it is not the master branch."
             fi
-branches:
-  ignore:
-    - gh-pages
 workflows:
   version: 2
   build-pumrp-in-parallel:
     jobs:
-      - orderservice
+      - orderservice:
+          filters:
+            branches: *branchignore
+      - orderhold:
+          type: approval
+          requires: 
+            - orderservice
       - orderservicedocker:
           requires:
-            - orderservice
-      - quoteservice
+            - orderhold
+      - quoteservice:
+          filters:
+            branches: *branchignore
+      - quotehold:
+          type: approval
+          requires: 
+            - quoteservice
       - quoteservicedocker:
           requires:
-            - quoteservice
-      - shipmentservice
+            - quotehold
+      - shipmentservice:
+          filters:
+            branches: *branchignore
+      - shipmenthold:
+          type: approval
+          requires: 
+            - shipmentservice
       - shipmentservicedocker:
           requires:
-            - shipmentservice
-      - catalogservice
+            - shipmenthold
+      - catalogservice:
+          filters: 
+            branches: *branchignore
+      - cataloghold:
+          type: approval
+          requires: 
+            - catalogservice
       - catalogservicedocker:
           requires:
-            - catalogservice
-      - dealerservice
+            - cataloghold
+      - dealerservice:
+          filters:
+            branches: *branchignore
+      - dealerhold:
+          type: approval
+          requires: 
+            - dealerservice
       - dealerservicedocker:
           requires:
-            - dealerservice
-      - web
+            - dealerhold
+      - web:
+          filters:
+            branches: *branchignore
+      - webhold:
+          type: approval
+          requires: 
+            - web
       - webdocker:
           requires:
-            - web
+            - webhold
