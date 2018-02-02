@@ -37,7 +37,7 @@ az aks get-credentials -g $READY_RG -n $READY_RG
 
 ```
 
-### MongoDB Backen using CosmosDB
+### MongoDB Backend via CLI using CosmosDB
 
 ```bash
 az cosmosdb create -n ${READY_RG}db -g $READY_RG --kind MongoDB
@@ -51,6 +51,26 @@ READY_COSMOSDB=$(echo ${READY_COSMOSDB_TEMP/?ssl=true/pumrp?ssl=true})
 
 # Connect to the db using the MongoShell
 mongo readywinter18db.documents.azure.com:10255/purmp -u readywinter18db -p sPc4ex1MGoqQsquW35m3XVek3CuRMaFY31dIZlMFvEkcJiVH0bU55PiroaZxNn6vdRgfusQmPJ17UdyqcIQcfA== --ssl --sslAllowInvalidCertificates
+```
+
+### MongoDB Backend via Azure Service Broker
+
+#### Deploy the scv catalog
+
+```bash
+helm repo add svc-cat https://svc-catalog-charts.storage.googleapis.com
+helm install svc-cat/catalog --name catalog --namespace catalog --set rbacEnable=false
+```
+
+#### Deploy the service broker
+
+```bash
+helm repo add azure https://kubernetescharts.blob.core.windows.net/azure
+helm install azure/open-service-broker-azure --name osba --namespace osba \
+  --set azure.subscriptionId=$AZURE_SUBSCRIPTION_ID \
+  --set azure.tenantId=$AZURE_TENANT_ID \
+  --set azure.clientId=$AZURE_CLIENT_ID \
+  --set azure.clientSecret=$AZURE_CLIENT_SECRET
 ```
 
 ### ACR - Private Registry

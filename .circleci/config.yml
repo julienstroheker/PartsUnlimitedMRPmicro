@@ -29,7 +29,7 @@ variables:
     command: |
       TAG=$DOCKER_TAG
       docker build -f ./$GIT_FOLDER/Dockerfile --build-arg port=$SERVICE_PORT --build-arg mongo_connection=mongodb://localhost/$GIT_FOLDER --build-arg VCS_REF=$CIRCLE_SHA1 --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:latest .
-      if [[ ((`echo $CIRCLE_BRANCH | grep -c "citest"` > 0))]]; then 
+      if [[ ((`echo $CIRCLE_BRANCH | grep -c "master"` > 0))]]; then 
         echo "Push to registry since it's the master branch."
         docker login $REGISTRY_NAME -u $DOCKER_USER -p $DOCKER_PASS
         docker push $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG
@@ -368,7 +368,7 @@ jobs:
       docker: *dockerazureimage
 
       environment:
-        DOCKER_IMAGE: pumrp-order
+        DOCKER_IMAGE: puorder
         DOCKER_TAG: latest
         SERVICE_PORT: 8080
         API_EP: orders
@@ -383,7 +383,7 @@ jobs:
       docker: *dockerazureimage
 
       environment:
-        DOCKER_IMAGE: pumrp-quote
+        DOCKER_IMAGE: puquote
         DOCKER_TAG: latest
         SERVICE_PORT: 8080
         API_EP: quotes
@@ -398,7 +398,7 @@ jobs:
       docker: *dockerazureimage
 
       environment:
-        DOCKER_IMAGE: pumrp-catalog
+        DOCKER_IMAGE: pucatalog
         DOCKER_TAG: latest
         SERVICE_PORT: 8080
         API_EP: catalog
@@ -413,7 +413,7 @@ jobs:
       docker: *dockerazureimage
 
       environment:
-        DOCKER_IMAGE: pumrp-shipment
+        DOCKER_IMAGE: pushipment
         DOCKER_TAG: latest
         SERVICE_PORT: 8080
         API_EP: shipments
@@ -428,7 +428,7 @@ jobs:
       docker: *dockerazureimage
 
       environment:
-        DOCKER_IMAGE: pumrp-dealer
+        DOCKER_IMAGE: pudealer
         DOCKER_TAG: latest
         SERVICE_PORT: 8080
         API_EP: dealers

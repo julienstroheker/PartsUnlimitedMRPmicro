@@ -5,7 +5,7 @@ replicaCount: 1
 apiversion:
   deployment: apps/v1beta1 # for versions 1.8+ use apps/v1beta2
 image:
-  repository: mypumrpmicro.azurecr.io/pumrp
+  repository: mypumrpmicro.azurecr.io
   name: pumrp-catalog
   tag: latest
   pullPolicy: Always
