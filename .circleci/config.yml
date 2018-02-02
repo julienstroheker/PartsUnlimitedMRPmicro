@@ -29,7 +29,7 @@ variables:
     command: |
       TAG=$DOCKER_TAG
       docker build -f ./$GIT_FOLDER/Dockerfile --build-arg port=$SERVICE_PORT --build-arg mongo_connection=mongodb://localhost/$GIT_FOLDER --build-arg VCS_REF=$CIRCLE_SHA1 --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:latest .
-      if [[ ((`echo $CIRCLE_BRANCH | grep -c "master"` > 0))]]; then 
+      if [[ ((`echo $CIRCLE_BRANCH | grep -c "citest"` > 0))]]; then 
         echo "Push to registry since it's the master branch."
         docker login $REGISTRY_NAME -u $DOCKER_USER -p $DOCKER_PASS
         docker push $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG
@@ -494,7 +494,7 @@ workflows:
             - orderhold
       - orderint:
           requires: 
-            - orderservicedocker
+            - createint
       - quoteservice:
           filters:
             branches: *branchignore
@@ -507,7 +507,7 @@ workflows:
             - quotehold
       - quoteint:
           requires: 
-            - quoteservicedocker
+            - createint
       - shipmentservice:
           filters:
             branches: *branchignore
@@ -520,7 +520,7 @@ workflows:
             - shipmenthold
       - shipmentint:
           requires: 
-            - shipmentservicedocker
+            - createint
       - catalogservice:
           filters: 
             branches: *branchignore
@@ -533,7 +533,7 @@ workflows:
             - cataloghold
       - catalogint:
           requires: 
-            - catalogservicedocker
+            - createint
       - dealerservice:
           filters:
             branches: *branchignore
@@ -546,7 +546,7 @@ workflows:
             - dealerhold
       - dealerint:
           requires: 
-            - dealerservicedocker
+            - createint
       - web:
           filters:
             branches: *branchignore
