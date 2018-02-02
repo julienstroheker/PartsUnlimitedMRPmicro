@@ -471,17 +471,17 @@ workflows:
       - createint:
           requires:
             - orderservicedocker
-              quoteservicedocker
-              shipmentservicedocker
-              catalogservicedocker
-              dealerservicedocker
+            - quoteservicedocker
+            - shipmentservicedocker
+            - catalogservicedocker
+            - dealerservicedocker
       - cleanint:
           requires:
             - quoteint
-              shipmentint
-              catalogint
-              dealerint
-              orderint
+            - shipmentint
+            - catalogint
+            - dealerint
+            - orderint
       - orderservice:
           filters:
             branches: *branchignore
