@@ -6,6 +6,8 @@ variables:
     ignore: [noci, gh-pages]
   - &dockerbuildimage
       - image: circleci/golang
+  - &dockerazureimage
+      - image: microsoft/azure-cli
   - &gradleimage
       - image: gradle:3.4.1-jdk8-alpine
   - &run-buildjava
@@ -26,7 +28,6 @@ variables:
     name: Build and Push Service Docker Image
     command: |
       TAG=$DOCKER_TAG
-      if [[ "${REGISTRY_NAMEIMAGE}" == "" ]] ; then REGISTRY_NAMEIMAGE="buildci"; fi
       docker build -f ./$GIT_FOLDER/Dockerfile --build-arg port=$SERVICE_PORT --build-arg mongo_connection=mongodb://localhost/$GIT_FOLDER --build-arg VCS_REF=$CIRCLE_SHA1 --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:latest .
       if [[ ((`echo $CIRCLE_BRANCH | grep -c "master"` > 0))]]; then 
         echo "Push to registry since it's the master branch."
@@ -37,6 +38,21 @@ variables:
       else
         echo "Skip Docker push image since it is not the master branch."
       fi
+  - &run-integrationtests
+    name: Integration tests template
+    command: |
+      echo "Running Integration Tests"
+      az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
+      az container create -g $AZURE_INT_RG --name $DOCKER_IMAGE --image $DOCKER_USER.azurecr.io/$DOCKER_IMAGE:$TAG --cpu 1 --memory 1.5 --registry-login-server $DOCKER_USER.azurecr.io --registry-username $DOCKER_USER --registry-password $DOCKER_PASS --ip-address Public -e expose_port=$SERVICE_PORT mongo_conn=$AZURE_INT_DB --ports $SERVICE_PORT
+      STATE=$(az container show -g $AZURE_INT_RG -n $DOCKER_IMAGE --query "instanceView.state")
+      while [ $STATE != "\"Running\"" ]
+      do
+        STATE=$(az container show -g $AZURE_INT_RG -n $DOCKER_IMAGE --query "instanceView.state")
+        echo State=$STATE
+      done
+      IP_INT=$(az container show -g $AZURE_INT_RG -n $DOCKER_IMAGE --query "ipAddress.ip" | sed 's/\"//g')
+      if [[ $(curl $IP_INT:$SERVICE_PORT/api/$API_INT_EP | jq length) == "2" ]]; then echo "Test passed"; else exit 1; fi
+
 jobs:
   orderservice:
     working_directory: *workdir
@@ -278,7 +294,6 @@ jobs:
           name: Build and Push Service Docker Image
           command: |
             TAG=$DOCKER_TAG
-            if [[ "${REGISTRY_NAMEIMAGE}" == "" ]] ; then REGISTRY_NAMEIMAGE="buildci"; fi
             echo "Building " $GIT_FOLDER
             docker build -f ./$GIT_FOLDER/Dockerfile --build-arg port=$SERVICE_PORT --build-arg VCS_REF=`git rev-parse --short HEAD` --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:latest .
             if [[ ((`echo $CIRCLE_BRANCH | grep -c "master"` > 0))]]; then 
@@ -337,7 +352,6 @@ jobs:
           command: |
             echo "Building " $GIT_FOLDER
             TAG=$DOCKER_TAG
-            if [[ "${REGISTRY_NAMEIMAGE}" == "" ]] ; then REGISTRY_NAMEIMAGE="buildci"; fi
             docker build -f ./$GIT_FOLDER/Dockerfile --build-arg port=$SERVICE_PORT --build-arg VCS_REF=`git rev-parse --short HEAD` --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:$TAG -t $REGISTRY_NAMEIMAGE/$DOCKER_IMAGE:latest .
             if [[ ((`echo $CIRCLE_BRANCH | grep -c "master"` > 0))]]; then 
               echo "Push to registry since it's the master branch."
@@ -348,6 +362,22 @@ jobs:
             else
               echo "Skip Docker push image since it is not the master branch."
             fi
+
+orderint:
+    working_directory: *workdir
+    docker: *dockerazureimage
+
+    environment:
+      DOCKER_IMAGE: pumrp-order
+      DOCKER_TAG: latest
+      SERVICE_PORT: 8080
+      API_EP: orders
+
+    steps:
+      - setup_remote_docker
+
+      - run: *run-integrationtests
+
 workflows:
   version: 2
   build-pumrp-in-parallel:
@@ -362,6 +392,9 @@ workflows:
       - orderservicedocker:
           requires:
             - orderhold
+      - orderint:
+          requires: 
+            - orderservicedocker
       - quoteservice:
           filters:
             branches: *branchignore
