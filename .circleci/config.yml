@@ -438,18 +438,18 @@ jobs:
 
         - run: *run-integrationtests
 
-createint:
-      working_directory: *workdir
-      docker: *dockerazureimage
+  createint:
+        working_directory: *workdir
+        docker: *dockerazureimage
 
-      steps:
-        - setup_remote_docker
+        steps:
+          - setup_remote_docker
 
-        - run:
-          name: Create the RG used for the integration tests
-          command: |
-            az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
-            az group create -n $AZURE_INT_RG -l $AZURE_INT_LOCATION
+          - run:
+            name: Create the RG used for the integration tests
+            command: |
+              az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
+              az group create -n $AZURE_INT_RG -l $AZURE_INT_LOCATION
 
   cleanint:
       working_directory: *workdir
