@@ -446,10 +446,10 @@ jobs:
           - setup_remote_docker
 
           - run:
-            name: Create the RG used for the integration tests
-            command: |
-              az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
-              az group create -n $AZURE_INT_RG -l $AZURE_INT_LOCATION
+              name: Create the RG used for the integration tests
+              command: |
+                az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
+                az group create -n $AZURE_INT_RG -l $AZURE_INT_LOCATION
 
   cleanint:
       working_directory: *workdir
@@ -459,10 +459,10 @@ jobs:
         - setup_remote_docker
 
         - run:
-          name: Delete the RG used for the integration tests
-          command: |
-            az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
-            az group delete -n $AZURE_INT_RG -l $AZURE_INT_LOCATION -y
+            name: Delete the RG used for the integration tests
+            command: |
+              az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
+              az group delete -n $AZURE_INT_RG -l $AZURE_INT_LOCATION -y
 
 workflows:
   version: 2
