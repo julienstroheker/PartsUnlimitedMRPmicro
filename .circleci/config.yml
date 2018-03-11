@@ -2,8 +2,12 @@ version: 2
 variables: 
   - &workdir
     /tmp/circleci
+  - &branchignore
+    ignore: [noci, gh-pages]
   - &dockerbuildimage
       - image: circleci/golang
+  - &dockerazureimage
+      - image: microsoft/azure-cli
   - &gradleimage
       - image: gradle:3.4.1-jdk8-alpine
   - &run-buildjava
@@ -34,6 +38,20 @@ variables:
       else
         echo "Skip Docker push image since it is not the master branch."
       fi
+  - &run-integrationtests
+    name: Integration tests template
+    command: |
+      echo "Running Integration Tests"
+      az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
+      az container create -g $AZURE_INT_RG --name $DOCKER_IMAGE --image $DOCKER_USER.azurecr.io/$DOCKER_IMAGE:$DOCKER_TAG --cpu 1 --memory 1.5 --registry-login-server $DOCKER_USER.azurecr.io --registry-username $DOCKER_USER --registry-password $DOCKER_PASS --ip-address Public -e expose_port=$SERVICE_PORT mongo_conn=$AZURE_INT_DB --ports $SERVICE_PORT
+      STATE=$(az container show -g $AZURE_INT_RG -n $DOCKER_IMAGE --query "instanceView.state")
+      while [ $STATE != "\"Running\"" ]
+      do
+        STATE=$(az container show -g $AZURE_INT_RG -n $DOCKER_IMAGE --query "instanceView.state")
+        echo State=$STATE
+      done
+      IP_INT=$(az container show -g $AZURE_INT_RG -n $DOCKER_IMAGE --query "ipAddress.ip" | sed 's/\"//g')
+      if [[ $(curl $IP_INT:$SERVICE_PORT/api/$API_INT_EP | jq length) == "2" ]]; then echo "Test passed"; else exit 1; fi
 
 jobs:
   orderservice:
@@ -344,34 +362,198 @@ jobs:
             else
               echo "Skip Docker push image since it is not the master branch."
             fi
-branches:
-  ignore:
-    - gh-pages
+
+  orderint:
+      working_directory: *workdir
+      docker: *dockerazureimage
+
+      environment:
+        DOCKER_IMAGE: puorder
+        DOCKER_TAG: latest
+        SERVICE_PORT: 8080
+        API_EP: orders
+
+      steps:
+        - setup_remote_docker
+
+        - run: *run-integrationtests
+
+  quoteint:
+      working_directory: *workdir
+      docker: *dockerazureimage
+
+      environment:
+        DOCKER_IMAGE: puquote
+        DOCKER_TAG: latest
+        SERVICE_PORT: 8080
+        API_EP: quotes
+
+      steps:
+        - setup_remote_docker
+
+        - run: *run-integrationtests
+
+  catalogint:
+      working_directory: *workdir
+      docker: *dockerazureimage
+
+      environment:
+        DOCKER_IMAGE: pucatalog
+        DOCKER_TAG: latest
+        SERVICE_PORT: 8080
+        API_EP: catalog
+
+      steps:
+        - setup_remote_docker
+
+        - run: *run-integrationtests
+
+  shipmentint:
+      working_directory: *workdir
+      docker: *dockerazureimage
+
+      environment:
+        DOCKER_IMAGE: pushipment
+        DOCKER_TAG: latest
+        SERVICE_PORT: 8080
+        API_EP: shipments
+
+      steps:
+        - setup_remote_docker
+
+        - run: *run-integrationtests
+
+  dealerint:
+      working_directory: *workdir
+      docker: *dockerazureimage
+
+      environment:
+        DOCKER_IMAGE: pudealer
+        DOCKER_TAG: latest
+        SERVICE_PORT: 8080
+        API_EP: dealers
+
+      steps:
+        - setup_remote_docker
+
+        - run: *run-integrationtests
+
+  createint:
+        working_directory: *workdir
+        docker: *dockerazureimage
+
+        steps:
+          - setup_remote_docker
+
+          - run:
+              name: Create the RG used for the integration tests
+              command: |
+                az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
+                az group create -n $AZURE_INT_RG -l $AZURE_INT_LOCATION
+
+  cleanint:
+      working_directory: *workdir
+      docker: *dockerazureimage
+
+      steps:
+        - setup_remote_docker
+
+        - run:
+            name: Delete the RG used for the integration tests
+            command: |
+              az login --service-principal -u $AZURE_SPN -p $AZURE_SECRET --tenant $AZURE_TENANT
+              az group delete -n $AZURE_INT_RG -l $AZURE_INT_LOCATION -y
+
 workflows:
   version: 2
   build-pumrp-in-parallel:
     jobs:
-      - orderservice
+      - createint:
+          requires:
+            - orderservicedocker
+            - quoteservicedocker
+            - shipmentservicedocker
+            - catalogservicedocker
+            - dealerservicedocker
+      - cleanint:
+          requires:
+            - quoteint
+            - shipmentint
+            - catalogint
+            - dealerint
+            - orderint
+      - orderservice:
+          filters:
+            branches: *branchignore
+      - orderhold:
+          type: approval
+          requires: 
+            - orderservice
       - orderservicedocker:
           requires:
-            - orderservice
-      - quoteservice
+            - orderhold
+      - orderint:
+          requires: 
+            - createint
+      - quoteservice:
+          filters:
+            branches: *branchignore
+      - quotehold:
+          type: approval
+          requires: 
+            - quoteservice
       - quoteservicedocker:
           requires:
-            - quoteservice
-      - shipmentservice
+            - quotehold
+      - quoteint:
+          requires: 
+            - createint
+      - shipmentservice:
+          filters:
+            branches: *branchignore
+      - shipmenthold:
+          type: approval
+          requires: 
+            - shipmentservice
       - shipmentservicedocker:
           requires:
-            - shipmentservice
-      - catalogservice
+            - shipmenthold
+      - shipmentint:
+          requires: 
+            - createint
+      - catalogservice:
+          filters: 
+            branches: *branchignore
+      - cataloghold:
+          type: approval
+          requires: 
+            - catalogservice
       - catalogservicedocker:
           requires:
-            - catalogservice
-      - dealerservice
+            - cataloghold
+      - catalogint:
+          requires: 
+            - createint
+      - dealerservice:
+          filters:
+            branches: *branchignore
+      - dealerhold:
+          type: approval
+          requires: 
+            - dealerservice
       - dealerservicedocker:
           requires:
-            - dealerservice
-      - web
+            - dealerhold
+      - dealerint:
+          requires: 
+            - createint
+      - web:
+          filters:
+            branches: *branchignore
+      - webhold:
+          type: approval
+          requires: 
+            - web
       - webdocker:
           requires:
-            - web
+            - webhold
